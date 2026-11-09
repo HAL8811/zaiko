@@ -263,7 +263,7 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 <script>
 const TYPES = [
   ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["daiko", "拠点違い（発送代行）"], ["kizu", "傷品への移行漏れ"],
+  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["manual", "手動の在庫訂正"],
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
