@@ -55,11 +55,13 @@ button, select, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 a { color: var(--accent-strong); }
 
-.shell { display: grid; grid-template-columns: 1fr; min-height: 100vh; }
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+/* ログイン画面が出ている間は後ろをスクロールさせない（スマホでボタンが押せなくなるのを防ぐ） */
+body:has(#lock:not([hidden])) { overflow: hidden; }
 @media (min-width: 64rem) { .shell { grid-template-columns: 14.5rem minmax(0, 1fr); } }
 
 /* 左のメニュー */
-.side { background: var(--nav-bg); color: var(--nav-ink); border-inline-end: 1px solid var(--nav-border);
+.side { min-width: 0; background: var(--nav-bg); color: var(--nav-ink); border-inline-end: 1px solid var(--nav-border);
   padding-block: 1rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 0.75rem; }
 .brand { display: flex; align-items: center; gap: 0.5rem; font-size: 1.125rem; font-weight: 800; letter-spacing: -0.02em; padding-inline: 0.25rem; }
 .brand-mark { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; background: var(--nav-active-bg); display: grid; place-items: center; }
@@ -135,6 +137,8 @@ a { color: var(--accent-strong); }
 .sev[data-s="中"] { color: var(--warn-strong); border-color: var(--warn); }
 .sev[data-s="低"] { color: var(--ink-muted); border-color: var(--border-strong); }
 .type { font-weight: 700; white-space: nowrap; }
+.tag { display: inline-block; margin-left: 0.35rem; padding: 0 0.5rem; border-radius: var(--r-pill); font-size: var(--t-2xs); font-weight: 800; white-space: nowrap; border: 1px solid var(--border-strong); color: var(--ink-muted); background: var(--surface); }
+.tag[data-t="大口予約"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
 .loc { color: var(--ink); font-weight: 700; margin-right: 0.4rem; white-space: nowrap; }
 .what { min-width: 18rem; max-width: 40rem; }
 .what strong { display: block; font-size: var(--t-sm); overflow-wrap: anywhere; }
@@ -160,13 +164,22 @@ a { color: var(--accent-strong); }
   .tbl td { border-bottom: 0; padding: 0.35rem 0.85rem; }
   .tbl tr > td:first-child { padding-top: 0.75rem; }
   .tbl tr > td:last-child { padding-bottom: 0.85rem; }
-  .tbl tr > td:first-child, .tbl tr > td:nth-child(2) { display: inline-block; width: auto; }
-  .tbl tr[data-h] > td:first-child { box-shadow: none; }
-  .tbl tr[data-h="open"] { box-shadow: inset 4px 0 0 var(--bad); }
-  .tbl tr[data-h="doing"] { box-shadow: inset 4px 0 0 var(--warn); }
-  .tbl tr[data-h="done"] { box-shadow: inset 4px 0 0 var(--good); }
-  .tbl tr[data-h="gone"] { box-shadow: inset 4px 0 0 var(--border-strong); }
+  /* 1行目に 重要度・種類・予約日 を並べる。色は行（カード）全体に付ける */
+  .tbl tr > td:nth-child(-n+3) { display: inline-block; width: auto; vertical-align: middle; padding-top: 0.75rem; padding-bottom: 0; }
+  .tbl tr > td:nth-child(2), .tbl tr > td:nth-child(3) { padding-left: 0; }
+  .tbl tr > td.when[data-empty] { display: none; }
+  .tbl tr[data-h] > td { background: transparent; box-shadow: none; }
+  .tbl tr[data-h="open"] { background: var(--bad-soft); box-shadow: inset 4px 0 0 var(--bad); }
+  .tbl tr[data-h="doing"] { background: var(--warn-soft); box-shadow: inset 4px 0 0 var(--warn); }
+  .tbl tr[data-h="done"] { background: var(--good-soft); box-shadow: inset 4px 0 0 var(--good); }
+  .tbl tr[data-h="gone"] { background: var(--neutral-soft); box-shadow: inset 4px 0 0 var(--border-strong); }
   .what, .act { min-width: 0; max-width: none; }
+  .what strong { font-size: var(--t-sm); }
+  .head { padding-block: 0.9rem 0.5rem; }
+  .head h1 { font-size: 1.25rem; }
+  .stat { padding: 0.2rem 0.6rem; }
+  .stat b { font-size: var(--t-md); }
+  .who { margin-left: 0; }
 }
 /* パスワード画面（claude.ai のアカウントが無い人向け・Stockan のログインと同じ「共有パスワード」） */
 .lock { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: var(--nav-bg);
@@ -358,7 +371,8 @@ function buildRow(key) {
   tr.append(...c);
   const sev = document.createElement("span"); sev.className = "sev"; c[0].append(sev);
   const type = document.createElement("span"); type.className = "type";
-  c[1].append(type);
+  const tag = document.createElement("span"); tag.className = "tag"; // 大口予約／一般予約
+  c[1].append(type, tag);
   c[2].className = "when";
   c[3].className = "what";
   const title = document.createElement("strong"), detail = document.createElement("p"), refs = document.createElement("div"), gone = document.createElement("span");
@@ -380,7 +394,7 @@ function buildRow(key) {
   status.addEventListener("change", () => save(key, { status: status.value }, by));
   cause.addEventListener("change", () => save(key, { cause: cause.value }, by));
   memo.addEventListener("change", () => save(key, { memo: memo.value.trim() }, by));
-  const r = { tr, sev, type, loc, dtext, title, refs, gone, when: c[2], status, cause, memo, by };
+  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], status, cause, memo, by };
   rowCache.set(key, r);
   return r;
 }
@@ -389,10 +403,12 @@ function fillRow(r, a) {
   r.tr.dataset.h = handled(a);
   r.sev.dataset.s = a.severity; r.sev.textContent = a.severity;
   r.type.textContent = a.type; r.loc.textContent = a.loc || "";
+  r.tag.textContent = a.tag || ""; r.tag.hidden = !a.tag; r.tag.dataset.t = a.tag || "";
   r.title.textContent = a.title; r.dtext.textContent = a.detail || "";
   r.refs.replaceChildren(...(a.refs || []).map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = `${x.label} を開く`; return l; }));
   r.gone.hidden = a.active !== false;
   r.when.textContent = a.date ? String(a.date).replace(/-/g, "/").slice(0, 16) : "—";
+  if (a.date) delete r.when.dataset.empty; else r.when.dataset.empty = "";
   r.status.value = a.status || "未対応";
   r.cause.value = CAUSES.includes(a.cause || "") ? (a.cause || "") : "その他";
   if (document.activeElement !== r.memo) r.memo.value = a.memo || "";
