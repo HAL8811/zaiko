@@ -146,6 +146,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .tbl.mode-manual .c-type, .tbl.mode-manual .c-what { display: none; }
 .c-who { white-space: nowrap; font-weight: 700; }
 .c-prod { min-width: 14rem; overflow-wrap: anywhere; font-weight: 700; }
+.c-prod .refs { font-weight: 600; font-size: var(--t-2xs); }
 .c-qty { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
 .what strong { display: block; font-size: var(--t-sm); overflow-wrap: anywhere; }
 .what p { margin: 0.2rem 0 0; color: var(--ink-muted); overflow-wrap: anywhere; }
@@ -418,7 +419,10 @@ function fillRow(r, a) {
   r.tr.dataset.h = handled(a);
   r.sev.dataset.s = a.severity; r.sev.textContent = a.severity;
   r.type.textContent = a.type; r.loc.textContent = a.loc || "";
-  r.who.textContent = a.who || ""; r.prod.textContent = a.product || ""; r.qty.textContent = a.qty || "";
+  r.who.textContent = a.who || ""; r.qty.textContent = a.qty || "";
+  // 手動の在庫訂正・傷品への移行漏れでは、商品名の下に関係する申込（直前の入庫）と在庫履歴へのリンクを出す
+  r.prod.replaceChildren(document.createTextNode(a.product || ""));
+  if ((a.refs || []).length) { const box = document.createElement("div"); box.className = "refs"; box.append(...a.refs.map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = x.label; return l; })); r.prod.append(box); }
   r.tag.textContent = a.tag || ""; r.tag.hidden = !a.tag; r.tag.dataset.t = a.tag || "";
   r.title.textContent = a.title; r.dtext.textContent = a.detail || "";
   r.refs.replaceChildren(...(a.refs || []).map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = `${x.label} を開く`; return l; }));
