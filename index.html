@@ -246,7 +246,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
       <input class="search" id="q" type="search" placeholder="商品名・販売先・番号で絞り込み" aria-label="絞り込み">
       <span class="who">担当 <b id="whoLabel">–</b> <button type="button" id="logout">担当者を変える</button></span>
     </div>
-    <div class="days" id="days" role="tablist" aria-label="検知した日"></div>
+    <div class="days" id="days" role="tablist" aria-label="予約日の月"></div>
     <div class="body">
       <p class="note" id="note" hidden></p>
       <div class="tblwrap">
@@ -288,6 +288,7 @@ const jst = (iso, withDate = true) => {
   return (withDate ? `${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())} ` : "") + `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 };
 const dayOf = (iso) => new Date(new Date(iso).getTime() + 9 * 3600000).toISOString().slice(0, 10);
+const monthOf = (a) => (/^\d{4}[-/]\d{2}/.test(a.date || "") ? String(a.date).slice(0, 7).replace("/", "-") : "none");
 const handled = (a) => a.active === false ? "gone" : a.status === "対応中" ? "doing" : (a.status === "対応済み" || a.status === "問題なし") ? "done" : "open";
 const isOpen = (a) => { const h = handled(a); return h === "open" || h === "doing"; };
 
@@ -332,7 +333,7 @@ function renderRun() {
 function inView(a, ignoreDay) {
   if (state.type !== "all" && typeSlug(a.type) !== state.type) return false;
   if (state.onlyOpen && !isOpen(a)) return false;
-  if (!ignoreDay && state.day !== "all" && dayOf(a.firstSeen) !== state.day) return false;
+  if (!ignoreDay && state.day !== "all" && monthOf(a) !== state.day) return false;
   if (state.q) {
     const hay = `${a.title} ${a.detail} ${a.loc} ${a.memo || ""}`.toLowerCase();
     if (!hay.includes(state.q.toLowerCase())) return false;
@@ -340,17 +341,22 @@ function inView(a, ignoreDay) {
   return true;
 }
 
+// 上のタブは「予約日の月」ごと（1月・2月・3月…）。予約日が無いもの（マイナス在庫など）は「日付なし」
 function renderDays() {
   const days = new Map();
   for (const a of state.alerts.values()) {
     if (!inView(a, true)) continue;
-    const d = dayOf(a.firstSeen);
+    const d = monthOf(a);
     const e = days.get(d) || { n: 0, open: 0 };
     e.n++; if (handled(a) === "open") e.open++;
     days.set(d, e);
   }
+  const thisYear = String(new Date().getFullYear());
+  // 件数が無い月も選べるように、今年の1月から今月までは常に出す
+  for (let m = 1; m <= new Date().getMonth() + 1; m++) { const k = `${thisYear}-${String(m).padStart(2, "0")}`; if (!days.has(k)) days.set(k, { n: 0, open: 0 }); }
   if (state.day !== "all" && !days.has(state.day)) state.day = "all";
-  const keys = [...days.keys()].sort().reverse();
+  const keys = [...days.keys()].sort((x, y) => (x === "none") - (y === "none") || x.localeCompare(y));
+  const monthLabel = (k) => k === "none" ? "日付なし" : `${k.slice(0, 4) === thisYear ? "" : `${k.slice(0, 4)}年`}${Number(k.slice(5, 7))}月`;
   const mk = (key, label, pending) => {
     const b = document.createElement("button");
     b.type = "button"; b.setAttribute("role", "tab");
@@ -361,8 +367,8 @@ function renderDays() {
     return b;
   };
   const total = [...days.values()].reduce((s, e) => s + e.open, 0);
-  $("days").replaceChildren(mk("all", `すべての日 ・ 未対応 ${total}`, total),
-    ...keys.map((k) => { const e = days.get(k); return mk(k, `${k.slice(5).replace("-", "/")} ・ ${e.open ? `未対応 ${e.open}` : `${e.n}件`}`, e.open); }));
+  $("days").replaceChildren(mk("all", `すべての月 ・ 未対応 ${total}`, total),
+    ...keys.map((k) => { const e = days.get(k); return mk(k, `${monthLabel(k)} ・ ${e.open ? `未対応 ${e.open}` : `${e.n}件`}`, e.open); }));
 }
 
 function option(sel, value, label) { const o = document.createElement("option"); o.value = value; o.textContent = label; sel.append(o); }
