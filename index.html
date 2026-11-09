@@ -141,6 +141,12 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .tag[data-t="大口予約"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
 .loc { color: var(--ink); font-weight: 700; margin-right: 0.4rem; white-space: nowrap; }
 .what { min-width: 18rem; max-width: 40rem; }
+.tbl .c-who, .tbl .c-prod, .tbl .c-qty { display: none; }
+.tbl.mode-manual .c-who, .tbl.mode-manual .c-prod, .tbl.mode-manual .c-qty { display: table-cell; }
+.tbl.mode-manual .c-type, .tbl.mode-manual .c-what { display: none; }
+.c-who { white-space: nowrap; font-weight: 700; }
+.c-prod { min-width: 14rem; overflow-wrap: anywhere; font-weight: 700; }
+.c-qty { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
 .what strong { display: block; font-size: var(--t-sm); overflow-wrap: anywhere; }
 .what p { margin: 0.2rem 0 0; color: var(--ink-muted); overflow-wrap: anywhere; }
 .refs { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-top: 0.3rem; font-weight: 600; }
@@ -176,6 +182,11 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
   .tbl tr[data-h="done"] { background: var(--good-soft); box-shadow: inset 4px 0 0 var(--good); }
   .tbl tr[data-h="gone"] { background: var(--neutral-soft); box-shadow: inset 4px 0 0 var(--border-strong); }
   .what, .act { min-width: 0; max-width: none; }
+  .tbl.mode-manual .c-who, .tbl.mode-manual .c-prod, .tbl.mode-manual .c-qty { display: block; }
+  .tbl.mode-manual .c-who::before { content: "担当 "; font-weight: 400; color: var(--ink-muted); }
+  .tbl.mode-manual .c-qty::before { content: "数量 "; font-weight: 400; color: var(--ink-muted); }
+  .tbl.mode-manual td.when::before { content: "変更日 "; }
+  .c-prod { min-width: 0; }
   .what strong { font-size: var(--t-sm); }
   .head { padding-block: 0.9rem 0.5rem; }
   .head h1 { font-size: 1.25rem; }
@@ -247,7 +258,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
       <p class="note" id="note" hidden></p>
       <div class="tblwrap">
         <table class="tbl">
-          <thead><tr><th>重要度</th><th>種類</th><th>予約日</th><th>内容</th><th>対応</th></tr></thead>
+          <thead><tr><th>重要度</th><th class="c-type">種類</th><th class="c-date" id="thDate">予約日</th><th class="c-who">担当者</th><th class="c-prod">商品名</th><th class="c-qty">変更前→変更後</th><th class="c-what">内容</th><th>対応</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
         <div class="empty" id="empty"><strong>まだアラートがありません</strong>巡回の結果が書き込まれると、ここに一覧で出ます。</div>
@@ -263,7 +274,7 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 <script>
 const TYPES = [
   ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["manual", "手動の在庫訂正"],
+  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["manual", "手動の在庫訂正"],
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
@@ -371,20 +382,20 @@ function option(sel, value, label) { const o = document.createElement("option");
 
 function buildRow(key) {
   const tr = document.createElement("tr");
-  const c = Array.from({ length: 5 }, () => document.createElement("td"));
+  const c = Array.from({ length: 8 }, () => document.createElement("td")); // 重要度・種類・日付・担当者・商品名・変更前→変更後・内容・対応
   tr.append(...c);
   const sev = document.createElement("span"); sev.className = "sev"; c[0].append(sev);
   const type = document.createElement("span"); type.className = "type";
   const tag = document.createElement("span"); tag.className = "tag"; // 大口予約／一般予約
   c[1].append(type, tag);
-  c[2].className = "when";
-  c[3].className = "what";
+  c[1].classList.add("c-type"); c[2].className = "when c-date"; c[3].className = "c-who"; c[4].className = "c-prod"; c[5].className = "c-qty";
+  c[6].className = "what c-what";
   const title = document.createElement("strong"), detail = document.createElement("p"), refs = document.createElement("div"), gone = document.createElement("span");
   const loc = document.createElement("b"), dtext = document.createElement("span");
   loc.className = "loc"; detail.append(loc, dtext);
   refs.className = "refs"; gone.className = "pill"; gone.textContent = "最新の巡回で消えました（自動で解消）";
-  c[3].append(title, detail, refs, gone);
-  c[4].className = "act";
+  c[6].append(title, detail, refs, gone);
+  c[7].className = "act";
   const row = document.createElement("div"); row.className = "row";
   const status = document.createElement("select"); status.id = `st-${key}`; status.setAttribute("aria-label", "対応状況");
   STATUSES.forEach((s) => option(status, s, s));
@@ -393,12 +404,12 @@ function buildRow(key) {
   row.append(status, cause);
   const memo = document.createElement("input"); memo.id = `me-${key}`; memo.type = "text"; memo.placeholder = "メモ（何をしたか・誰に確認したか）"; memo.setAttribute("aria-label", "メモ");
   const by = document.createElement("span"); by.className = "by";
-  c[4].append(row, memo, by);
+  c[7].append(row, memo, by);
 
   status.addEventListener("change", () => save(key, { status: status.value }, by));
   cause.addEventListener("change", () => save(key, { cause: cause.value }, by));
   memo.addEventListener("change", () => save(key, { memo: memo.value.trim() }, by));
-  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], status, cause, memo, by };
+  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by };
   rowCache.set(key, r);
   return r;
 }
@@ -407,6 +418,7 @@ function fillRow(r, a) {
   r.tr.dataset.h = handled(a);
   r.sev.dataset.s = a.severity; r.sev.textContent = a.severity;
   r.type.textContent = a.type; r.loc.textContent = a.loc || "";
+  r.who.textContent = a.who || ""; r.prod.textContent = a.product || ""; r.qty.textContent = a.qty || "";
   r.tag.textContent = a.tag || ""; r.tag.hidden = !a.tag; r.tag.dataset.t = a.tag || "";
   r.title.textContent = a.title; r.dtext.textContent = a.detail || "";
   r.refs.replaceChildren(...(a.refs || []).map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = `${x.label} を開く`; return l; }));
@@ -427,6 +439,10 @@ function fillNames() {}
 function renderRows() {
   const list = [...state.alerts.values()].filter((a) => inView(a))
     .sort((a, b) => (handled(a) === "gone") - (handled(b) === "gone") || ST[a.status || "未対応"] - ST[b.status || "未対応"] || SEV[a.severity] - SEV[b.severity] || String(b.firstSeen).localeCompare(String(a.firstSeen)));
+  // 手動の在庫訂正だけは 重要度・変更日・担当者・商品名・変更前→変更後・対応 の列で見せる
+  const manual = state.type === "manual";
+  document.querySelector(".tbl").classList.toggle("mode-manual", manual);
+  $("thDate").textContent = manual ? "変更日" : "予約日";
   const tbody = $("rows");
   const rows = list.map((a) => { const r = rowCache.get(a.key) || buildRow(a.key); fillRow(r, a); return r; });
   const wanted = rows.map((r) => r.tr);
