@@ -352,8 +352,8 @@ function renderDays() {
     days.set(d, e);
   }
   const thisYear = String(new Date().getFullYear());
-  // 件数が無い月も選べるように、今年の1月から今月までは常に出す
-  for (let m = 1; m <= new Date().getMonth() + 1; m++) { const k = `${thisYear}-${String(m).padStart(2, "0")}`; if (!days.has(k)) days.set(k, { n: 0, open: 0 }); }
+  // 件数が無い月も選べるように、今年の1月〜12月は常に出す
+  for (let m = 1; m <= 12; m++) { const k = `${thisYear}-${String(m).padStart(2, "0")}`; if (!days.has(k)) days.set(k, { n: 0, open: 0 }); }
   if (state.day !== "all" && !days.has(state.day)) state.day = "all";
   const keys = [...days.keys()].sort((x, y) => (x === "none") - (y === "none") || y.localeCompare(x)); // 新しい月から（11月→10月→…→1月）、日付なしは最後
   const monthLabel = (k) => k === "none" ? "日付なし" : `${k.slice(0, 4) === thisYear ? "" : `${k.slice(0, 4)}年`}${Number(k.slice(5, 7))}月`;
