@@ -220,10 +220,6 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
     <div class="brand-sub">sig-platform・HP の巡回アラート</div>
     <div class="nav-label">アラートの種類</div>
     <nav class="nav" id="nav" aria-label="アラートの種類"></nav>
-    <div class="nav-label">準備中</div>
-    <ul class="soon">
-      <li>傷品への移行漏れ<span>準備中</span></li>
-    </ul>
   </aside>
 
   <main class="main">
@@ -267,7 +263,7 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 <script>
 const TYPES = [
   ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["daiko", "拠点違い（発送代行）"],
+  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["daiko", "拠点違い（発送代行）"], ["kizu", "傷品への移行漏れ"],
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
