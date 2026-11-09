@@ -274,7 +274,7 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 <script>
 const TYPES = [
   ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["manual", "手動の在庫訂正"],
+  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["manual", "手動の在庫訂正"],
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
@@ -440,7 +440,7 @@ function renderRows() {
   const list = [...state.alerts.values()].filter((a) => inView(a))
     .sort((a, b) => (handled(a) === "gone") - (handled(b) === "gone") || ST[a.status || "未対応"] - ST[b.status || "未対応"] || SEV[a.severity] - SEV[b.severity] || String(b.firstSeen).localeCompare(String(a.firstSeen)));
   // 手動の在庫訂正だけは 重要度・変更日・担当者・商品名・変更前→変更後・対応 の列で見せる
-  const manual = state.type === "manual";
+  const manual = state.type === "manual" || state.type === "kizu"; // 担当者・商品名・数量の列で見せる
   document.querySelector(".tbl").classList.toggle("mode-manual", manual);
   $("thDate").textContent = manual ? "変更日" : "予約日";
   const tbody = $("rows");
