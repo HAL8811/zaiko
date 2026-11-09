@@ -106,6 +106,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); padding: 2px; }
 .seg button { border: 0; background: transparent; padding: 0.25rem 0.8rem; border-radius: var(--r-pill); font-size: var(--t-xs); font-weight: 600; color: var(--ink-muted); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.stores { flex-wrap: wrap; }
 .search { flex: 1 1 14rem; min-width: 0; max-width: 22rem; padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); }
 
 .days { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: thin; border-block: 1px solid var(--border); background: var(--surface-muted);
@@ -252,6 +253,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
         <button type="button" id="fAll" aria-pressed="false">すべて</button>
       </div>
       <input class="search" id="q" type="search" placeholder="商品名・販売先・番号で絞り込み" aria-label="絞り込み">
+      <div class="seg stores" id="stores" role="group" aria-label="拠点"></div>
       <span class="who">担当 <b id="whoLabel">–</b> <button type="button" id="logout">担当者を変える</button></span>
     </div>
     <div class="days" id="days" role="tablist" aria-label="予約日の月"></div>
@@ -275,7 +277,7 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 <script>
 const TYPES = [
   ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["manual", "手動の在庫訂正"],
+  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["shuri", "シュリ無しへの移し忘れ"], ["manual", "手動の在庫訂正"],
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
@@ -283,7 +285,7 @@ const CAUSES = ["", "種類の選び間違い", "変換・傷移行の入力漏�
 const SEV = { 高: 0, 中: 1, 低: 2 };
 const ST = { 未対応: 0, 対応中: 1, 対応済み: 2, 問題なし: 2 };
 
-const state = { alerts: new Map(), meta: null, type: "all", onlyOpen: true, day: "all", q: "", canWrite: true, loaded: false };
+const state = { alerts: new Map(), meta: null, type: "all", onlyOpen: true, day: "all", store: "all", q: "", canWrite: true, loaded: false };
 let db = null, user = null, uid = null;
 const rowCache = new Map();
 const writeChain = new Map();
@@ -342,6 +344,7 @@ function inView(a, ignoreDay) {
   if (state.type !== "all" && typeSlug(a.type) !== state.type) return false;
   if (state.onlyOpen && !isOpen(a)) return false;
   if (!ignoreDay && state.day !== "all" && monthOf(a) !== state.day) return false;
+  if (state.store !== "all" && storeOf(a) !== state.store) return false;
   if (state.q) {
     const hay = `${a.title} ${a.detail} ${a.loc} ${a.memo || ""}`.toLowerCase();
     if (!hay.includes(state.q.toLowerCase())) return false;
@@ -444,7 +447,7 @@ function renderRows() {
   const list = [...state.alerts.values()].filter((a) => inView(a))
     .sort((a, b) => (handled(a) === "gone") - (handled(b) === "gone") || ST[a.status || "未対応"] - ST[b.status || "未対応"] || SEV[a.severity] - SEV[b.severity] || String(b.firstSeen).localeCompare(String(a.firstSeen)));
   // 手動の在庫訂正だけは 重要度・変更日・担当者・商品名・変更前→変更後・対応 の列で見せる
-  const manual = state.type === "manual" || state.type === "kizu"; // 担当者・商品名・数量の列で見せる
+  const manual = ["manual", "kizu", "shuri"].includes(state.type); // 担当者・商品名・数量の列で見せる
   document.querySelector(".tbl").classList.toggle("mode-manual", manual);
   $("thDate").textContent = manual ? "変更日" : "予約日";
   const tbody = $("rows");
@@ -458,8 +461,32 @@ function renderRows() {
   fillNames(rows);
 }
 
+// 拠点：アラートの拠点欄（sig-platform の拠点・HP の店舗・kintone の予約先）を店舗名にそろえる
+const STORES = ["浅草橋", "秋葉原", "なんば", "福岡", "名古屋", "発送代行", "郵送"];
+function storeOf(a) {
+  const l = String(a.loc || "");
+  if (/発送代行/.test(l)) return "発送代行";
+  if (/郵送/.test(l)) return "郵送";
+  if (/大阪|なんば/.test(l)) return "なんば";
+  for (const s of ["浅草橋", "秋葉原", "福岡", "名古屋"]) if (l.includes(s)) return s;
+  return l || "その他";
+}
+function renderStores() {
+  const counts = {};
+  for (const a of state.alerts.values()) { if (state.type !== "all" && typeSlug(a.type) !== state.type) continue; if (state.onlyOpen && !isOpen(a)) continue; const s = storeOf(a); counts[s] = (counts[s] || 0) + 1; }
+  const keys = ["all", ...STORES.filter((s) => counts[s]), ...Object.keys(counts).filter((s) => !STORES.includes(s))];
+  if (state.store !== "all" && !counts[state.store]) state.store = "all";
+  $("stores").replaceChildren(...keys.map((k) => {
+    const b = document.createElement("button"); b.type = "button";
+    b.setAttribute("aria-pressed", String(state.store === k));
+    b.textContent = k === "all" ? "全拠点" : `${k} ${counts[k]}`;
+    b.addEventListener("click", () => { state.store = k; render(); });
+    return b;
+  }));
+}
+
 function render() {
-  renderNav(); renderStats(); renderRun(); renderDays(); renderRows();
+  renderNav(); renderStats(); renderRun(); renderStores(); renderDays(); renderRows();
   $("fOpen").setAttribute("aria-pressed", String(state.onlyOpen));
   $("fAll").setAttribute("aria-pressed", String(!state.onlyOpen));
 }
