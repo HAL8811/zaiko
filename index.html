@@ -165,8 +165,10 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
   .tbl tr > td:first-child { padding-top: 0.75rem; }
   .tbl tr > td:last-child { padding-bottom: 0.85rem; }
   /* 1行目に 重要度・種類・予約日 を並べる。色は行（カード）全体に付ける */
-  .tbl tr > td:nth-child(-n+3) { display: inline-block; width: auto; vertical-align: middle; padding-top: 0.75rem; padding-bottom: 0; }
-  .tbl tr > td:nth-child(2), .tbl tr > td:nth-child(3) { padding-left: 0; }
+  .tbl tr > td:nth-child(-n+2) { display: inline-block; width: auto; vertical-align: middle; padding-top: 0.75rem; padding-bottom: 0; }
+  .tbl tr > td:nth-child(2) { padding-left: 0; }
+  .tbl tr > td.when { padding-top: 0.3rem; padding-bottom: 0; font-size: var(--t-2xs); }
+  .tbl tr > td.when::before { content: "予約日 "; font-weight: 700; }
   .tbl tr > td.when[data-empty] { display: none; }
   .tbl tr[data-h] > td { background: transparent; box-shadow: none; }
   .tbl tr[data-h="open"] { background: var(--bad-soft); box-shadow: inset 4px 0 0 var(--bad); }
