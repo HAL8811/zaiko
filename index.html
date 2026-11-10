@@ -135,7 +135,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .tbl tr[data-h="open"] > td { background: var(--bad-soft); }
 .tbl tr[data-h="open"] > td:first-child { box-shadow: inset 4px 0 0 var(--bad); }
 .tbl tr[data-h="doing"] > td { background: var(--warn-soft); }
-.tbl tr[data-h="doing"] > td:first-child { box-shadow: inset 4px 0 0 var(--warn); }
+.tbl tr[data-h="doing"] > td:first-child { box-shadow: inset 8px 0 0 var(--warn); }
 .tbl tr[data-h="done"] > td { background: var(--good-soft); }
 .tbl tr[data-h="done"] > td:first-child { box-shadow: inset 4px 0 0 var(--good); }
 .tbl tr[data-h="gone"] > td { background: var(--neutral-soft); color: var(--ink-muted); }
@@ -167,6 +167,12 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .act .row { display: flex; gap: 0.35rem; }
 .act select, .act input { min-width: 0; width: 100%; padding: 0.3rem 0.5rem; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); font-size: var(--t-xs); }
 .act select:disabled, .act input:disabled { opacity: 0.6; }
+.act select[data-st] { font-weight: 700; }
+.act select[data-st="未対応"] { background: var(--bad-soft); color: var(--bad-strong); border-color: var(--bad); }
+.act select[data-st="対応中"] { background: var(--warn); color: oklch(22% 0.04 70); border-color: var(--warn-strong); }
+.act select[data-st="対応済み"], .act select[data-st="問題なし"] { background: var(--good-soft); color: var(--good-strong); border-color: var(--good); }
+button.stat { cursor: pointer; font: inherit; font-weight: 700; font-size: var(--t-xs); }
+button.stat[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: 1px; }
 .by { color: var(--ink-faint); font-size: var(--t-2xs); }
 .by[data-err] { color: var(--bad-strong); font-weight: 700; }
 .empty { padding: 2.5rem 1rem; text-align: center; color: var(--ink-muted); }
@@ -188,7 +194,7 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
   .tbl tr > td.when[data-empty] { display: none; }
   .tbl tr[data-h] > td { background: transparent; box-shadow: none; }
   .tbl tr[data-h="open"] { background: var(--bad-soft); box-shadow: inset 4px 0 0 var(--bad); }
-  .tbl tr[data-h="doing"] { background: var(--warn-soft); box-shadow: inset 4px 0 0 var(--warn); }
+  .tbl tr[data-h="doing"] { background: var(--warn-soft); box-shadow: inset 8px 0 0 var(--warn); }
   .tbl tr[data-h="done"] { background: var(--good-soft); box-shadow: inset 4px 0 0 var(--good); }
   .tbl tr[data-h="gone"] { background: var(--neutral-soft); box-shadow: inset 4px 0 0 var(--border-strong); }
   .what, .act { min-width: 0; max-width: none; }
@@ -250,15 +256,17 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
         <p class="run" id="run">巡回の結果を読み込んでいます…</p>
       </div>
       <div class="stats" id="stats">
-        <span class="stat" data-k="open">未対応 <b id="sOpen">–</b></span>
-        <span class="stat" data-k="doing">対応中 <b id="sDoing">–</b></span>
-        <span class="stat" data-k="done">対応済み <b id="sDone">–</b></span>
+        <button type="button" class="stat" data-k="open" data-show="open">未対応 <b id="sOpen">–</b></button>
+        <button type="button" class="stat" data-k="doing" data-show="doing">対応中 <b id="sDoing">–</b></button>
+        <button type="button" class="stat" data-k="done" data-show="done">対応済み <b id="sDone">–</b></button>
       </div>
     </header>
     <div class="bar">
       <div class="seg" role="group" aria-label="表示する対応状況">
-        <button type="button" id="fOpen" aria-pressed="true">未対応・対応中</button>
-        <button type="button" id="fAll" aria-pressed="false">すべて</button>
+        <button type="button" data-show="pending" aria-pressed="true">未対応・対応中</button>
+        <button type="button" data-show="open" aria-pressed="false">未対応だけ</button>
+        <button type="button" data-show="doing" aria-pressed="false">対応中だけ</button>
+        <button type="button" data-show="all" aria-pressed="false">すべて</button>
       </div>
       <input class="search" id="q" type="search" placeholder="商品名・販売先・番号で絞り込み" aria-label="絞り込み">
       <div class="seg stores" id="stores" role="group" aria-label="拠点"></div>
@@ -302,7 +310,7 @@ const CAUSES = ["", "種類の選び間違い", "変換・傷移行の入力漏�
 const SEV = { 高: 0, 中: 1, 低: 2 };
 const ST = { 未対応: 0, 対応中: 1, 対応済み: 2, 問題なし: 2 };
 
-const state = { alerts: new Map(), meta: null, type: "all", onlyOpen: true, day: "all", store: "all", q: "", canWrite: true, loaded: false };
+const state = { alerts: new Map(), meta: null, type: "all", show: "pending", day: "all", store: "all", q: "", canWrite: true, loaded: false };
 let db = null, user = null, uid = null;
 const rowCache = new Map();
 const writeChain = new Map();
@@ -318,6 +326,8 @@ const dayOf = (iso) => new Date(new Date(iso).getTime() + 9 * 3600000).toISOStri
 const monthOf = (a) => (/^\d{4}[-/]\d{2}/.test(a.date || "") ? String(a.date).slice(0, 7).replace("/", "-") : "none");
 const handled = (a) => a.active === false ? "gone" : a.status === "対応中" ? "doing" : (a.status === "対応済み" || a.status === "問題なし") ? "done" : "open";
 const isOpen = (a) => { const h = handled(a); return h === "open" || h === "doing"; };
+// 表示する対応状況：pending=未対応・対応中／open=未対応だけ／doing=対応中だけ／done=対応済み／all=すべて
+const showOk = (a) => state.show === "all" || (state.show === "pending" ? isOpen(a) : handled(a) === state.show);
 
 function typeSlug(t) { const e = TYPES.find(([, name]) => name === t); return e ? e[0] : "other"; }
 
@@ -372,7 +382,7 @@ function renderRun() {
 
 function inView(a, ignoreDay) {
   if (state.type !== "all" && typeSlug(a.type) !== state.type) return false;
-  if (state.onlyOpen && !isOpen(a)) return false;
+  if (!showOk(a)) return false;
   if (!ignoreDay && state.day !== "all" && monthOf(a) !== state.day) return false;
   if (state.store !== "all" && storeOf(a) !== state.store) return false;
   if (state.q) {
@@ -440,7 +450,7 @@ function buildRow(key) {
   const by = document.createElement("span"); by.className = "by";
   c[7].append(row, memo, by);
 
-  status.addEventListener("change", () => save(key, { status: status.value }, by));
+  status.addEventListener("change", () => { status.dataset.st = status.value; save(key, { status: status.value }, by); });
   cause.addEventListener("change", () => save(key, { cause: cause.value }, by));
   memo.addEventListener("change", () => save(key, { memo: memo.value.trim() }, by));
   const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by };
@@ -462,7 +472,7 @@ function fillRow(r, a) {
   r.gone.hidden = a.active !== false;
   r.when.textContent = a.date ? String(a.date).replace(/-/g, "/").slice(0, 16) : "—";
   if (a.date) delete r.when.dataset.empty; else r.when.dataset.empty = "";
-  r.status.value = a.status || "未対応";
+  r.status.value = a.status || "未対応"; r.status.dataset.st = r.status.value;
   r.cause.value = CAUSES.includes(a.cause || "") ? (a.cause || "") : "その他";
   if (document.activeElement !== r.memo) r.memo.value = a.memo || "";
   [r.status, r.cause, r.memo].forEach((x) => { x.disabled = !state.canWrite; });
@@ -503,7 +513,7 @@ function storeOf(a) {
 }
 function renderStores() {
   const counts = {};
-  for (const a of state.alerts.values()) { if (state.type !== "all" && typeSlug(a.type) !== state.type) continue; if (state.onlyOpen && !isOpen(a)) continue; const s = storeOf(a); counts[s] = (counts[s] || 0) + 1; }
+  for (const a of state.alerts.values()) { if (state.type !== "all" && typeSlug(a.type) !== state.type) continue; if (!showOk(a)) continue; const s = storeOf(a); counts[s] = (counts[s] || 0) + 1; }
   const keys = ["all", ...STORES.filter((s) => counts[s]), ...Object.keys(counts).filter((s) => !STORES.includes(s))];
   if (state.store !== "all" && !counts[state.store]) state.store = "all";
   $("stores").replaceChildren(...keys.map((k) => {
@@ -517,8 +527,7 @@ function renderStores() {
 
 function render() {
   renderNav(); renderStats(); renderRun(); renderStores(); renderDays(); renderRows();
-  $("fOpen").setAttribute("aria-pressed", String(state.onlyOpen));
-  $("fAll").setAttribute("aria-pressed", String(!state.onlyOpen));
+  document.querySelectorAll("[data-show]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.show === state.show)));
 }
 
 function save(key, patch, byEl) {
@@ -532,8 +541,7 @@ function save(key, patch, byEl) {
 
 function note(text, tone) { const n = $("note"); n.hidden = !text; n.textContent = text || ""; if (tone) n.dataset.tone = tone; else delete n.dataset.tone; }
 
-$("fOpen").addEventListener("click", () => { state.onlyOpen = true; render(); });
-$("fAll").addEventListener("click", () => { state.onlyOpen = false; render(); });
+document.querySelectorAll("[data-show]").forEach((b) => b.addEventListener("click", () => { state.show = state.show === b.dataset.show && b.classList.contains("stat") ? "pending" : b.dataset.show; render(); }));
 let qTimer;
 $("q").addEventListener("input", (e) => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 150); });
 addEventListener("hashchange", () => { readHash(); state.day = "all"; render(); });
