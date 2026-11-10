@@ -77,6 +77,12 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .nav .n { min-width: 1.6rem; padding: 0 0.4rem; border-radius: var(--r-pill); background: var(--bad); color: var(--accent-ink); font-size: var(--t-2xs); font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
 .nav .n[data-n="0"] { background: transparent; color: var(--nav-ink-muted); }
 .nav button[aria-current="true"] .n { background: var(--nav-active-ink); color: var(--nav-active-bg); }
+/* 種類のグループ（仕入れ・検品・ステータス）。見出しの下に枝分かれで並べる */
+.nav-group { display: flex; flex-direction: column; gap: 2px; margin-top: 0.6rem; }
+.nav-group-h { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0.75rem 0.15rem; color: var(--nav-ink-muted); font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.04em; }
+.nav-group-h .gn { font-size: var(--t-2xs); font-variant-numeric: tabular-nums; }
+.nav-kids { display: flex; flex-direction: column; gap: 2px; margin-left: 0.95rem; padding-left: 0.45rem; border-left: 2px solid var(--nav-border); }
+.nav-kids button { font-size: 0.875rem; }
 .soon { list-style: none; margin: 0; padding: 0 0.75rem; display: flex; flex-direction: column; gap: 0.4rem; color: var(--nav-ink-muted); font-size: var(--t-xs); }
 .soon li { display: flex; justify-content: space-between; gap: 0.5rem; }
 .soon span { flex: 0 0 auto; font-size: var(--t-2xs); border: 1px solid var(--nav-border); border-radius: var(--r-pill); padding: 0 0.45rem; }
@@ -85,6 +91,8 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
   .brand-sub, .nav-label, .soon { display: none; }
   .nav { flex-direction: row; overflow-x: auto; gap: 0.25rem; margin-top: 0.6rem; scrollbar-width: thin; }
   .nav button { width: auto; flex: 0 0 auto; font-size: var(--t-xs); white-space: nowrap; }
+  .nav-group, .nav-kids { display: contents; }
+  .nav-group-h { display: none; }
 }
 
 /* 本文 */
@@ -276,8 +284,17 @@ window.addEventListener("unhandledrejection", (e) => { const el = document.getEl
 </script>
 <script>
 const TYPES = [
-  ["all", "すべて"], ["neg", "マイナス在庫"], ["dupout", "二重登録の疑い"],
-  ["transfer", "移動の未受取"], ["shiire", "仕入れと在庫の違い"], ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"], ["kizu", "傷品への移行漏れ"], ["shuri", "シュリ無しへの移し忘れ"], ["manual", "手動の在庫訂正"],
+  ["all", "すべて"], ["neg", "マイナス在庫"], ["manual", "手動の在庫訂正"],
+  ["dupout", "二重登録の疑い"], ["shiire", "仕入れと在庫の違い"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"],
+  ["transfer", "移動の未受取"], ["kizu", "傷品への移行漏れ"], ["shuri", "シュリ無しへの移し忘れ"],
+  ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"],
+];
+// 左の種類メニューの並びとグループ（2026-11-10 ユーザー指定）。見出しなしの先頭グループ＋仕入れ・検品・ステータス
+const NAV_GROUPS = [
+  { name: "", slugs: ["all", "neg", "manual"] },
+  { name: "仕入れ", slugs: ["dupout", "shiire", "hpres", "dupin"] },
+  { name: "検品", slugs: ["transfer", "kizu", "shuri"] },
+  { name: "ステータス", slugs: ["unpaid-t", "unpaid-o"] },
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
@@ -313,7 +330,8 @@ function renderNav() {
   const counts = {};
   for (const a of state.alerts.values()) if (handled(a) === "open") { counts.all = (counts.all || 0) + 1; const s = typeSlug(a.type); counts[s] = (counts[s] || 0) + 1; }
   const nav = $("nav");
-  nav.replaceChildren(...TYPES.map(([slug, name]) => {
+  const btn = (slug) => {
+    const name = TYPE_BY_SLUG[slug];
     const b = document.createElement("button");
     b.type = "button";
     b.setAttribute("aria-current", String(state.type === slug));
@@ -322,6 +340,18 @@ function renderNav() {
     b.append(label, n);
     b.addEventListener("click", () => { location.hash = slug === "all" ? "all" : slug; });
     return b;
+  };
+  nav.replaceChildren(...NAV_GROUPS.flatMap((g) => {
+    if (!g.name) return g.slugs.map(btn);
+    const box = document.createElement("div"); box.className = "nav-group";
+    const h = document.createElement("div"); h.className = "nav-group-h";
+    const t = document.createElement("span"); t.textContent = g.name;
+    const gn = document.createElement("span"); gn.className = "gn"; gn.textContent = g.slugs.reduce((s, x) => s + (counts[x] || 0), 0);
+    h.append(t, gn);
+    const kids = document.createElement("div"); kids.className = "nav-kids"; kids.setAttribute("role", "group"); kids.setAttribute("aria-label", g.name);
+    kids.append(...g.slugs.map(btn));
+    box.append(h, kids);
+    return [box];
   }));
   $("viewTitle").textContent = state.type === "all" ? "すべてのアラート" : TYPE_BY_SLUG[state.type];
 }
