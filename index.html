@@ -297,6 +297,7 @@ const TYPES = [
   ["dupout", "二重登録の疑い"], ["shiire", "仕入れと在庫の違い"], ["hpres", "予約確定のまま（HP）"], ["dupin", "買取の連携重複"],
   ["transfer", "移動の未受取"], ["kizu", "傷品への移行漏れ"], ["shuri", "シュリ無しへの移し忘れ"],
   ["unpaid-t", "未振込（トレカ）"], ["unpaid-o", "未振込（その他）"],
+  ["kecak", "KECAKシステム"],
 ];
 // 左の種類メニューの並びとグループ（2026-11-10 ユーザー指定）。見出しなしの先頭グループ＋仕入れ・検品・ステータス
 const NAV_GROUPS = [
@@ -304,6 +305,7 @@ const NAV_GROUPS = [
   { name: "仕入れ", slugs: ["dupout", "shiire", "hpres", "dupin"] },
   { name: "検品", slugs: ["transfer", "kizu", "shuri"] },
   { name: "ステータス", slugs: ["unpaid-t", "unpaid-o"] },
+  { name: "営業", slugs: ["kecak"] },
 ];
 const TYPE_BY_SLUG = Object.fromEntries(TYPES);
 const STATUSES = ["未対応", "対応中", "対応済み", "問題なし"];
