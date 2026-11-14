@@ -150,7 +150,9 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .tag[data-t="大口予約"] { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
 .loc { color: var(--ink); font-weight: 700; margin-right: 0.4rem; white-space: nowrap; }
 .what { min-width: 18rem; max-width: 40rem; }
-.tbl .c-who, .tbl .c-prod, .tbl .c-qty { display: none; }
+.tbl .c-who, .tbl .c-prod, .tbl .c-qty, .tbl .c-deliv { display: none; }
+/* KECAKシステムの画面だけ「納品日」の列を出す（2026-11-14 ユーザー指定） */
+.tbl.mode-kecak .c-deliv { display: table-cell; white-space: nowrap; font-weight: 700; }
 .tbl.mode-manual .c-who, .tbl.mode-manual .c-prod, .tbl.mode-manual .c-qty { display: table-cell; }
 .tbl.mode-manual .c-type, .tbl.mode-manual .c-what { display: none; }
 .c-who { white-space: nowrap; font-weight: 700; }
@@ -211,6 +213,8 @@ button.stat[aria-pressed="true"] { outline: 2px solid currentColor; outline-offs
   .tbl.mode-manual .c-who::before { content: "担当 "; font-weight: 400; color: var(--ink-muted); }
   .tbl.mode-manual .c-qty::before { content: "数量 "; font-weight: 400; color: var(--ink-muted); }
   .tbl.mode-manual td.when::before { content: "変更日 "; }
+  .tbl.mode-kecak .c-deliv { display: block; }
+  .tbl.mode-kecak .c-deliv::before { content: "納品日 "; font-weight: 400; color: var(--ink-muted); }
   .c-prod { min-width: 0; }
   .what strong { font-size: var(--t-sm); }
   .head { padding-block: 0.9rem 0.5rem; }
@@ -286,7 +290,7 @@ button.stat[aria-pressed="true"] { outline: 2px solid currentColor; outline-offs
       <p class="note" id="note" hidden></p>
       <div class="tblwrap">
         <table class="tbl">
-          <thead><tr><th>重要度</th><th class="c-type">種類</th><th class="c-date" id="thDate">予約日</th><th class="c-who">担当者</th><th class="c-prod">商品名</th><th class="c-qty">変更前→変更後</th><th class="c-what">内容</th><th>対応</th></tr></thead>
+          <thead><tr><th>重要度</th><th class="c-type">種類</th><th class="c-date" id="thDate">予約日</th><th class="c-deliv">納品日</th><th class="c-who">担当者</th><th class="c-prod">商品名</th><th class="c-qty">変更前→変更後</th><th class="c-what">内容</th><th>対応</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
         <div class="empty" id="empty"><strong>まだアラートがありません</strong>巡回の結果が書き込まれると、ここに一覧で出ます。</div>
@@ -439,6 +443,7 @@ function buildRow(key) {
   const tr = document.createElement("tr");
   const c = Array.from({ length: 8 }, () => document.createElement("td")); // 重要度・種類・日付・担当者・商品名・変更前→変更後・内容・対応
   tr.append(...c);
+  const deliv = document.createElement("td"); deliv.className = "c-deliv"; c[2].after(deliv); // KECAKシステムの納品日（出荷予定日）
   const sev = document.createElement("span"); sev.className = "sev"; c[0].append(sev);
   const type = document.createElement("span"); type.className = "type";
   const tag = document.createElement("span"); tag.className = "tag"; // 大口予約／一般予約
@@ -474,7 +479,7 @@ function buildRow(key) {
     status.dispatchEvent(new Event("change"));
     setK(kbtn, status.value === "対応済み");
   });
-  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by, kitems, kbtn, row };
+  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by, kitems, kbtn, row, deliv };
   rowCache.set(key, r);
   return r;
 }
@@ -496,10 +501,11 @@ function fillRow(r, a) {
   r.title.textContent = a.title; r.dtext.textContent = a.detail || "";
   // KECAKシステム：説明の1行目（期限・出荷予定）の下に、確定の明細を1行ずつ出す
   const kecak = a.type === "KECAKシステム";
+  r.deliv.textContent = kecak ? ((String(a.detail || "").match(/出荷予定 (\d{4})-(\d{2})-(\d{2})/) || []).slice(1).join("/") || "—") : "";
   r.kitems.hidden = !kecak; r.kbtn.hidden = !kecak; r.row.hidden = kecak;
   if (kecak) {
     const [head, ...lines] = String(a.detail || "").split("\n");
-    r.dtext.textContent = head;
+    r.dtext.textContent = head.replace(/／出荷予定 .*$/, "");
     r.kitems.replaceChildren(...lines.filter(Boolean).map((l) => { const m = l.match(/^(.*) ×(\d+)$/); const li = document.createElement("li"); const n = document.createElement("span"), q = document.createElement("b"); n.textContent = m ? m[1] : l; q.textContent = m ? `${m[2]}点` : ""; li.append(n, q); return li; }));
   }
   r.refs.replaceChildren(...(a.refs || []).map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = `${x.label} を開く`; return l; }));
@@ -524,6 +530,7 @@ function renderRows() {
   // 手動の在庫訂正だけは 重要度・変更日・担当者・商品名・変更前→変更後・対応 の列で見せる
   const manual = ["manual", "kizu", "shuri"].includes(state.type); // 担当者・商品名・数量の列で見せる
   document.querySelector(".tbl").classList.toggle("mode-manual", manual);
+  document.querySelector(".tbl").classList.toggle("mode-kecak", state.type === "kecak");
   $("thDate").textContent = manual ? "変更日" : "予約日";
   const tbody = $("rows");
   const rows = list.map((a) => { const r = rowCache.get(a.key) || buildRow(a.key); fillRow(r, a); return r; });
