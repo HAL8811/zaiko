@@ -155,6 +155,14 @@ body:has(#lock:not([hidden])) { overflow: hidden; }
 .tbl.mode-manual .c-type, .tbl.mode-manual .c-what { display: none; }
 .c-who { white-space: nowrap; font-weight: 700; }
 .c-prod { min-width: 14rem; overflow-wrap: anywhere; font-weight: 700; }
+/* KECAKシステム：確定の明細と「反映済み」ボタン（2026-11-14 ユーザー指定） */
+.kitems { margin: 0.35rem 0 0; padding: 0.35rem 0.6rem; list-style: none; background: var(--surface-muted); border-radius: var(--r-sm); font-size: var(--t-xs); }
+.kitems li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.1rem 0; border-bottom: 1px dashed var(--border); }
+.kitems li:last-child { border-bottom: 0; }
+.kitems li b { white-space: nowrap; }
+.kbtn { width: 100%; padding: 0.55rem 0.8rem; margin-bottom: 0.4rem; border-radius: var(--r-sm); font-weight: 700; cursor: pointer; border: 1.5px solid var(--accent); background: var(--accent); color: #fff; }
+.kbtn[data-done] { background: transparent; color: var(--good, #2f855a); border-color: var(--good, #2f855a); }
+.kbtn:disabled { opacity: 0.5; cursor: default; }
 .c-prod .why { margin-top: 0.2rem; font-weight: 600; font-size: var(--t-2xs); color: var(--ink); background: var(--surface-muted); border-left: 3px solid var(--accent); padding: 0.15rem 0.45rem; border-radius: var(--r-sm); }
 .c-prod .refs { font-weight: 600; font-size: var(--t-2xs); }
 .c-qty { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
@@ -441,7 +449,8 @@ function buildRow(key) {
   const loc = document.createElement("b"), dtext = document.createElement("span");
   loc.className = "loc"; detail.append(loc, dtext);
   refs.className = "refs"; gone.className = "pill"; gone.textContent = "最新の巡回で消えました（自動で解消）";
-  c[6].append(title, detail, refs, gone);
+  const kitems = document.createElement("ul"); kitems.className = "kitems"; kitems.hidden = true;
+  c[6].append(title, detail, kitems, refs, gone);
   c[7].className = "act";
   const row = document.createElement("div"); row.className = "row";
   const status = document.createElement("select"); status.id = `st-${key}`; status.setAttribute("aria-label", "対応状況");
@@ -451,15 +460,26 @@ function buildRow(key) {
   row.append(status, cause);
   const memo = document.createElement("input"); memo.id = `me-${key}`; memo.type = "text"; memo.placeholder = "メモ（何をしたか・誰に確認したか）"; memo.setAttribute("aria-label", "メモ");
   const by = document.createElement("span"); by.className = "by";
-  c[7].append(row, memo, by);
+  const kbtn = document.createElement("button"); kbtn.type = "button"; kbtn.className = "kbtn"; kbtn.hidden = true;
+  c[7].append(kbtn, row, memo, by);
 
   status.addEventListener("change", () => { status.dataset.st = status.value; save(key, { status: status.value }, by); });
   cause.addEventListener("change", () => save(key, { cause: cause.value }, by));
   memo.addEventListener("change", () => save(key, { memo: memo.value.trim() }, by));
-  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by };
+  // KECAKシステム：押すと「対応済み」（＝反映済み）。押されるまでアラートは残る。もう一度押すと取り消し
+  kbtn.addEventListener("click", () => {
+    const done = status.value === "対応済み";
+    if (done && !confirm("反映済みを取り消しますか？")) return;
+    status.value = done ? "未対応" : "対応済み";
+    status.dispatchEvent(new Event("change"));
+    setK(kbtn, status.value === "対応済み");
+  });
+  const r = { tr, sev, type, tag, loc, dtext, title, refs, gone, when: c[2], who: c[3], prod: c[4], qty: c[5], status, cause, memo, by, kitems, kbtn, row };
   rowCache.set(key, r);
   return r;
 }
+
+function setK(b, done) { b.textContent = done ? "✓ 反映済み（押すと取り消し）" : "反映済みにする"; if (done) b.dataset.done = ""; else delete b.dataset.done; }
 
 function fillRow(r, a) {
   r.tr.dataset.h = handled(a);
@@ -474,6 +494,14 @@ function fillRow(r, a) {
   if ((a.refs || []).length) { const box = document.createElement("div"); box.className = "refs"; box.append(...a.refs.map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = x.label; return l; })); r.prod.append(box); }
   r.tag.textContent = a.tag || ""; r.tag.hidden = !a.tag; r.tag.dataset.t = a.tag || "";
   r.title.textContent = a.title; r.dtext.textContent = a.detail || "";
+  // KECAKシステム：説明の1行目（期限・出荷予定）の下に、確定の明細を1行ずつ出す
+  const kecak = a.type === "KECAKシステム";
+  r.kitems.hidden = !kecak; r.kbtn.hidden = !kecak; r.row.hidden = kecak;
+  if (kecak) {
+    const [head, ...lines] = String(a.detail || "").split("\n");
+    r.dtext.textContent = head;
+    r.kitems.replaceChildren(...lines.filter(Boolean).map((l) => { const m = l.match(/^(.*) ×(\d+)$/); const li = document.createElement("li"); const n = document.createElement("span"), q = document.createElement("b"); n.textContent = m ? m[1] : l; q.textContent = m ? `${m[2]}点` : ""; li.append(n, q); return li; }));
+  }
   r.refs.replaceChildren(...(a.refs || []).map((x) => { const l = document.createElement("a"); l.href = x.url; l.target = "_blank"; l.rel = "noopener"; l.textContent = `${x.label} を開く`; return l; }));
   r.gone.hidden = a.active !== false;
   r.when.textContent = a.date ? String(a.date).replace(/-/g, "/").slice(0, 16) : "—";
@@ -481,7 +509,8 @@ function fillRow(r, a) {
   r.status.value = a.status || "未対応"; r.status.dataset.st = r.status.value;
   r.cause.value = CAUSES.includes(a.cause || "") ? (a.cause || "") : "その他";
   if (document.activeElement !== r.memo) r.memo.value = a.memo || "";
-  [r.status, r.cause, r.memo].forEach((x) => { x.disabled = !state.canWrite; });
+  [r.status, r.cause, r.memo, r.kbtn].forEach((x) => { x.disabled = !state.canWrite; });
+  if (kecak) setK(r.kbtn, r.status.value === "対応済み");
   r.by.textContent = a.at ? `${a.byName ? `${a.byName} ・ ` : ""}更新 ${jst(a.at)}` : "";
   r.by.dataset.uid = a.byName ? "" : (a.by || ""); // 名前を入れて記録したものはその名前を出す
   delete r.by.dataset.err;
